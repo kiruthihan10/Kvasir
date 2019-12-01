@@ -174,6 +174,8 @@ class organize:
             Y.append(Y_datas[i])
         return([X,Y])
 
+## Even though I could have used the above mentions functions to create dataset I used tensorflow datasets to create dataset Because this would be more faster than mine.    
+
 base_dir = os.path.join('','/gdrive/My Drive/Kvasir/kvasir-dataset')
 train_dir = os.path.join(base_dir,'Train')
 validation_dir = os.path.join(base_dir,'Validation')
