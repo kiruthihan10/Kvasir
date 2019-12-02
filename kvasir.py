@@ -174,8 +174,6 @@ class organize:
             Y.append(Y_datas[i])
         return([X,Y])
 
-## Even though I could have used the above mentions functions to create dataset I used tensorflow datasets to create dataset Because this would be more faster than mine.    
-
 base_dir = os.path.join('','/gdrive/My Drive/Kvasir/kvasir-dataset')
 train_dir = os.path.join(base_dir,'Train')
 validation_dir = os.path.join(base_dir,'Validation')
@@ -205,14 +203,15 @@ import tensorflow as tf
 
 image_size = 331 # All images will be resized to 160x160
 batch_size = int(len(os.listdir(validation_polyps)))
-batch_size = 32
+batch_size = 20
 print(batch_size)
 
 # Rescale all images by 1./255 and apply image augmentation
 train_datagen = keras.preprocessing.image.ImageDataGenerator(
-                rescale=1./255)
+                featurewise_std_normalization=True)
 
-validation_datagen = keras.preprocessing.image.ImageDataGenerator(rescale=1./255)
+validation_datagen = keras.preprocessing.image.ImageDataGenerator(
+                featurewise_std_normalization=True)
 
 # Flow training images in batches of 20 using train_datagen generator
 train_generator = train_datagen.flow_from_directory(
@@ -243,28 +242,32 @@ model = tf.keras.Sequential([
     base_model,
     keras.layers.GlobalAveragePooling2D(),
     keras.layers.Dropout(0.5),
+    keras.layers.Dense(128,activation='relu',),
+    keras.layers.BatchNormalization(axis=1 , center=True , scale=True),
+    keras.layers.Dense(32,activation='relu',),
+    keras.layers.BatchNormalization(axis=1 , center=True , scale=True),
     keras.layers.Dense(8,activation='sigmoid')
 ])
 
-initial_learning_rate = 0.1
-decay_step = 10000
-decay_rate = 1/10
+initial_learning_rate = 0.01
+decay_step = 1000
+decay_rate = 1/100
 global_step = tf.Variable(0,trainable=False,name="global_step")
 learning_rate = tf.train.exponential_decay(initial_learning_rate,global_step,decay_step,decay_rate)
 optimizer = tf.train.AdamOptimizer(0.1)
 
 model.compile(optimizer=optimizer,
              loss='categorical_crossentropy',
-             metrics=['categorical_accuracy'])
+             metrics=['categorical_accuracy','acc'])
 
 model.summary()
 
 len(model.trainable_variables)
 
 epochs = 10
-steps_per_epoch = train_generator.n
-validation_steps = validation_generator.n
-
+steps_per_epoch = train_generator.n//batch_size
+validation_steps = validation_generator.n//batch_size
+print(steps_per_epoch)
 history = model.fit_generator(train_generator,
                              steps_per_epoch = steps_per_epoch,
                              epochs = epochs,
@@ -273,7 +276,7 @@ history = model.fit_generator(train_generator,
                              validation_steps = validation_steps)
 
 import matplotlib.pyplot as plt
-import matpllotlb.image as mpimg
+import matplotlib.image as mpimg
 
 acc = history.history['acc']
 val_acc = history.history['val_acc']
@@ -312,7 +315,7 @@ model.compile(optimizer=tf.keras.optimizers.RMSprop(lr=0.0001),
 
 model.summary()
 
-len(model.trainable_variable)
+len(model.trainable_variables)
 
 history_fine = model.fit_generator(train_generator,
                              steps_per_epoch = steps_per_epoch,
@@ -331,7 +334,7 @@ plt.figure(figsize=(8, 8))
 plt.subplot(2, 1, 1)
 plt.plot(acc, label='Training Accuracy')
 plt.plot(val_acc, label='Validation Accuracy')
-plt.ylim([0.9, 1])
+plt.ylim([0, 1])
 plt.plot([epochs-1,epochs-1], plt.ylim(), label='Start Fine Tuning')
 plt.legend(loc='lower right')
 plt.title('Training and Validation Accuracy')
@@ -339,9 +342,54 @@ plt.title('Training and Validation Accuracy')
 plt.subplot(2, 1, 2)
 plt.plot(loss, label='Training Loss')
 plt.plot(val_loss, label='Validation Loss')
-plt.ylim([0, 0.2])
+plt.ylim([0, 1])
 plt.plot([epochs-1,epochs-1], plt.ylim(), label='Start Fine Tuning')
 plt.legend(loc='upper right')
+plt.title('Training and Validation Loss')
+plt.show()
+
+base_model.trainable = False
+total_acc = []
+total_val_acc = []
+total_loss = []
+total_val_loss = []
+for i in range(0,len(base_model.layers)//10):
+  for layer in base_model.layers[:10*i]:
+    layer_trainable = False
+  epochs = 1
+  layer.trainable = False
+  history_fine = model.fit_generator(train_generator,
+                             steps_per_epoch = steps_per_epoch,
+                             epochs = epochs,
+                             workers = 4,
+                             validation_data = validation_generator,
+                             validation_steps = validation_steps)
+  acc = history.history['acc']
+  total_acc += acc
+  val_acc = history.history['val_acc']
+  total_val_acc += val_acc
+
+  loss = history.history['loss']
+  total_loss += loss
+  val_loss = history.history['val_loss']
+  total_val_loss += val_loss
+
+
+plt.figure(figsize=(8, 8))
+plt.subplot(2, 1, 1)
+plt.plot(total_acc, label='Training Accuracy')
+plt.plot(total_val_acc, label='Validation Accuracy')
+plt.legend(loc='lower right')
+plt.ylabel('Accuracy')
+plt.ylim([min(plt.ylim()),1])
+plt.title('Training and Validation Accuracy')
+
+plt.subplot(2, 1, 2)
+plt.plot(total_loss, label='Training Loss')
+plt.plot(total_val_loss, label='Validation Loss')
+plt.legend(loc='upper right')
+plt.ylabel('Cross Entropy')
+plt.ylim([0,max(plt.ylim())])
 plt.title('Training and Validation Loss')
 plt.show()
 
